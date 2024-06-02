@@ -54,6 +54,7 @@ global isumhourlyfiles sf1;% sf1 is the scale factor to go from kg/m^2 to inches
 global min5peryear total5minper;
 
 %% Start Calculation the stats for the nine variables of interest
+% This is based on second pass data
 % Variable 1 is Total Precip in mm
 StormBasicStats{1,1}='Total Precip-mm';
 numvals=length(SPS7);
@@ -254,7 +255,7 @@ StormBasicStats{5,11}=sumvals5;
 % Create a Table from this cell array
 
 % Print out these results to the log file
-fprintf(fid,'%s\n','----------- Start Descriptive Statistics Of Erosive Event Variables--------');
+fprintf(fid,'%s\n','----------- Start Descriptive Statistics Of Second Pass Variables--------');
 str1='Variable';
 str2='NumPts';
 str3='Mean';
@@ -280,16 +281,16 @@ fprintf(fid,'% 13i % 10.4f %10.4f %12.4f',numvals,mean2,median2,mode2);
 fprintf(fid,'% 10.4f % 10.4f %10.4f % 10.4f  % 10.4f %10.4f\n',std2,minval2,maxval2,skew2,kurt2,sumvalues2);
 str1='OverRate';
 fprintf(fid,'% 10s',str1);
-fprintf(fid,'% 13i % 10.4f %10.4f %12.4f',numvals,mean3,median3,mode3);
-fprintf(fid,'% 10.4f % 10.4f %10.4f % 10.4f % 10.4f %10.4f\n',std3,minval3,maxval3,skew3,kurt3,sumvalues3);
+fprintf(fid,'% 14i % 10.4f %10.4f %12.4f',numvals,mean3,median3,mode3);
+fprintf(fid,'% 10.4f % 10.4f %10.4f % 10.4f % 10.4f %11.4f\n',std3,minval3,maxval3,skew3,kurt3,sumvalues3);
 str1='MAXRate5Min';
 fprintf(fid,'% 10s',str1);
-fprintf(fid,'% 12i % 10.4f %10.4f %12.4f',numvals,mean4,median4,mode4);
-fprintf(fid,'% 10.4f % 10.4f %10.4f % 10.4f %10.4f\n',std4,minval4,maxval4,skew4,kurt4,sumvals4);
+fprintf(fid,'% 13i % 10.4f %10.4f %12.4f',numvals,mean4,median4,mode4);
+fprintf(fid,'% 10.4f % 10.4f %10.4f % 10.4f % 10.4f %10.4f\n',std4,minval4,maxval4,skew4,kurt4,sumvals4);
 str1='MaxRate15Min';
 fprintf(fid,'% 10s',str1);
 fprintf(fid,'% 12i % 10.4f %10.4f %12.4f',numvals,mean5,median5,mode5);
-fprintf(fid,'% 10.4f % 10.4f %10.4f % 10.4f %10.4f\n',std5,minval5,maxval5,skew5,kurt5,sumvals5);
+fprintf(fid,'% 10.4f % 10.4f %10.4f % 10.4f % 10.4f %10.4f\n',std5,minval5,maxval5,skew5,kurt5,sumvals5);
 % str1='MAX-30-mm/hr';
 % fprintf(fid,'% 10s',str1);
 % fprintf(fid,'% 12i % 10.4f %10.4f %12.4f',numvals,mean6,median6,mode6);
@@ -307,6 +308,6 @@ fprintf(fid,'% 10.4f % 10.4f %10.4f % 10.4f %10.4f\n',std5,minval5,maxval5,skew5
 % fprintf(fid,'% 7i % 10.4f %10.4f %12.4f',numvals,mean9,median9,mode9);
 % fprintf(fid,'% 10.4f % 10.4f %10.4f % 10.4f %10.4f\n',std9,minval9,maxval9,skew9,kurt9);
 
-fprintf(fid,'%s\n','----------- End Descriptive Statistics Of Erosive Event Variables--------');
+fprintf(fid,'%s\n','----------- End Descriptive Statistics Of Secondf Pass Variables--------');
 ab=1;
 end

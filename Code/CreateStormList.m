@@ -4,13 +4,17 @@
 % Written By Stephen Forczyk and Dr Joydeb Saha
 % Created: May 11,2024
 % Revised: May 24,2024 created logic to write tables to Excel
+% Revised: May 29,2024 made key logic change in selecting
+%          rain events to be included
 % Classification: Unclassified/Public Domain
 
 % Source:Rainfall erosivity in Italy: a national scale spatio-
 % temporal assessment https://doi.org/10.1080/17538947.2016.1148203
 
 global RainFallFile1 RainFallFile2 RainFallFile1C RainFallFile2C;
-global RainFallFile3 RainFallFile3C S;
+global ActualRainFall ActualRainFallTimes SortedRainFallAmt S;
+global TotalValues TotalWet TotalDry GlobalValues;
+global Allraintotmax5 Allrate5sample Allraintotmax15 Allrate15sample Allraintotmax30 Allrate30sample;
 global StationStr StationNum RainFallFile RainFallCatalogedFile;
 global RainFallTime RainFallFlag RainFallAmt RainFallName;
 global DetectTime NoDetectTime ErosiveList ErosiveList2 ErosiveIndices;
@@ -18,7 +22,7 @@ global ErosiveTimes SecondPassTimes ErosiveMonthlyCounts;
 global ProvinceNames RainFallTime30 I30max;
 global PotentialStorms ConsolidatedStorm  DefinedStorms BreakPoints;
 global PS2 PS3 PS4 PS5 PS6 PS7 PS8 PS9 PS10 PS11 PS12 PS13 PS14 PS15 PS16;
-global SPS2 SPS3 SPS4 SPS5 SPS6 SPS7 SPS8 SPS9 SPS10 SPS11 SPS12 SPS13 SPS14 SPS15 SPS16 
+global SPS2 SPS3 SPS4 SPS5 SPS6 SPS7 SPS8 SPS9 SPS10 SPS11 SPS12 SPS13 SPS14 SPS15 SPS16 SPS17;
 global SPDetectTime SPTimeIndices;
 global numtimesstep SelectedYears SelStartIndex SelEndIndex numused numedused30;
 global StormThreshTot StormThresh360 StormThresh15 StormBreakThresh;
@@ -35,6 +39,7 @@ global ErosiveEventTable ErosiveEventTT ErosiveEvent2Table ErosiveEvent2TT;
 global ErosiveCountsTable EroisveCountsTT EventYears;
 global StormBasicStats StormBasicStatsHdr;
 global FirstPassItems SecondPassItems ErosiveItems;
+global SPS12Counts SPS15Counts SPS16Counts EventCounts CriteriaCounts;
 
 
 global ColorList RGBVals ColorList2 xkcdVals LandColors;
@@ -314,8 +319,29 @@ fprintf(fid,'%s\n','End Of List Of Selected Years');
 % Limit the search to the selected years
 if(iStorms>0)
     extent= SelEndIndex-SelStartIndex+1;
+% Get the Cumilative Distribution for the 5 min rainfall measurements
+% omit zero values
     [ibig2]=find(RainFallAmt>0);
     numbig2=length(ibig2);
+    TotalValues=length(RainFallAmt);
+    TotalWet=numbig2;
+    TotalDry=TotalValues-TotalWet;
+
+    ActualRainFall=zeros(numbig2,1);
+    ActualRainFallTimes=RainFallTime(ibig2);
+    for m=1:numbig2
+        nowInd=ibig2(m,1);
+        ActualRainFall(m,1)=RainFallAmt(nowInd,1);
+    end
+    SortedRainFallAmt=sort(ActualRainFall,'ascend');
+    ab=1;
+    nsteps=200;
+    [outputXVals,outputValues,cumilOutput] = SortedDistribution(SortedRainFallAmt,nsteps);
+%   Now look for the max global deposits in 5,15 and 30 minute segments
+    GlobalValues=zeros(TotalValues,1);
+    GlobalValues=1:1:TotalValues;
+    GlobalValues=GlobalValues';
+    [Allraintotmax5,Allrate5sample,Allraintotmax15,Allrate15sample,Allraintotmax30,Allrate30sample] = Get15MinAnd30MRatesInSegment(RainFallAmt,GlobalValues);
     [izero2]=find(RainFallAmt==0);
     numzero2=length(izero2);    
     ibig=zeros(extent,1);
@@ -359,7 +385,6 @@ if(iStorms>0)
     numzero=length(izero);
     DetectTime=RainFallTime(ibig);
     NoDetectTime=RainFallTime(izero);
-%    FindRainFallBreakPoints(izero);
     PotentialStorms=cell(numbig,16);
     PotentialStorms{1,1}='DateTime';
     PotentialStorms{1,2}='Sample';
@@ -478,6 +503,10 @@ if(iStorms>0)
         PS16(ii,1)=PotentialStorms{1+ii,16};
     end
 end
+% Plot the cumilative Distribution of RainFall Rate Data
+titlestr=strcat(FileStub,'-CumilRainFallDist');
+titlestr=RemoveUnderScores(titlestr);
+PlotRainFallRatesCumilDist(outputXVals,outputValues,cumilOutput,titlestr)
 % Calculate the location of BreakPoints Changed locationb of function call
 % FindRainFallBreakPoints(izero,ibig);
 % ab=1;
@@ -514,6 +543,7 @@ SPS13=zeros(numposevents,1);
 SPS14=zeros(numposevents,1);
 SPS15=zeros(numposevents,1);
 SPS16=zeros(numposevents,1);
+SPS17=zeros(numposevents,1);
 SPTimeIndices=zeros(numposevents,1);
 
 [numposevents,necols]=size(BreakPoints);
@@ -538,49 +568,32 @@ for m=1:numposevents
     numdry=0;
     maxrateoverlimit=0;
     ik=0;
+    ik30=0;
     rainhold=zeros(3,1);
-    for mm=mstart:mend
-         raintotmax15=0;
-         rate=RainFallAmt(mm);% rain mm/hr over a 5 min interval
-         raintot=raintot+rate*5/60;
-         ik=ik+1;
-         rainhold(ik,1)=raintot;
-         if((ik==3) && (mm<=mend))
-            sumrainhold=sum(rainhold);
-            if(sumrainhold>raintotmax15)
-                raintotmax15=sumrainhold;
-            end
-         elseif(ik>3)
-             ik=0;
-         else
-             raintotmax15=0;
-         end
-    
-         if(rate>0)
-            lastrain=mm;
-            numrain=numrain+1;
-            if(numrain==1)
-                startrain=mm;
-            end
-         else
-             numdry=numdry+1;
-         end
-         if(rate>maxrate)
-            maxrate=rate;
-            maxratesamp=mm;
-         end 
-         if(maxrate>StormThresh15)
-             maxrateoverlimit=maxrateoverlimit+1;
-             maxrateevent=1;
-         else
-             maxrateevent=0;
-         end
-         ab=1;
+    rainhold30=zeros(6,1);
+    ipass=0;
+    maxrate15samp=0;
+    numseg=mend-mstart+1;
+    LocalVals=zeros(numseg,1);
+    LocalInd=zeros(numseg,1);
+    ik=0;
+    for mm=mstart:mend% Inner Loop
+        ik=ik+1;
+        rate=RainFallAmt(mm,1);
+        index=mm;
+        LocalVals(ik,1)=rate;
+        LocalInd(ik,1)=index;
     end
+% Get the start and rain indices
+    [startrain,endrain,duration]=GetStartAndEndRainIndices(LocalVals,LocalInd);
+    ab=1;
+% now get the maxrain rate
+   [maxrate,maxratesamp,maxrateoverlimit] = GetMaxRainRateInSegment(LocalVals,LocalInd);
+% Get the raintotals
+   [raintot,numrain,numdry] = GetMaxRainSegmentTotals(LocalVals,LocalInd);
     SPTimeIndices(m,1)=startrain;
     SPS2(m,1)=startrain;
-    SPS3(m,1)=lastrain;
-    duration=(lastrain-startrain+1)*5/60; % duration in hrs
+    SPS3(m,1)=endrain;
     SPS4(m,1)=duration;
     SPS5(m,1)=maxrate;
     SPS6(m,1)=maxratesamp;
@@ -588,29 +601,33 @@ for m=1:numposevents
     SPS8(m,1)=numrain;
     SPS9(m,1)=numdry;
     SPS10(m,1)=maxrateoverlimit;
-    if(raintot>=StormThresh360)
+    ab=1;
+    if(raintot>=StormThresh360)% This checks to see if a rain break ocured
         SPS11(m,1)=1;
     else
         SPS11(m,1)=0;
     end
-    if(raintot>=StormThreshTot)
+    if(raintot>=StormThreshTot)% Did enough rainfall in 6 hours to declare an event
         SPS12(m,1)=1;
     else
         SPS12(m,1)=0;
     end
-    SPS13(m,1)=maxrateevent;
-    SPS14(m,1)=raintotmax15;
-    nowtime=char(RainFallTime(mstart));
-    dispstr=strcat('Event-',num2str(m),'-mstart-',num2str(mstart),'-to-',num2str(mend),'-Time-',...
-        nowtime);
-    dispstr2=strcat('Raintot-',num2str(raintot),'-maxrate-',num2str(maxrate),...
-        '-maxrateoverlimit-',num2str(maxrateoverlimit),'-numrain-',num2str(numrain));
-    if(mod(m,5)==0)
-        disp(dispstr)
-        disp(dispstr2)
+%    [raintotmax15,rate15sample,raintotmax30,rate30sample] = Get15MinAnd30MRatesInSegment(LocalVals,LocalInd);
+    [raintotmax5,rate5sample,raintotmax15,rate15sample,raintotmax30,rate30sample] = Get15MinAnd30MRatesInSegment(LocalVals,LocalInd);
+    SPS13(m,1)=rate15sample;% biggest 15 min rain fall sample
+    SPS14(m,1)=raintotmax15;% biggest 15 min rainfall 
+   % maxrainrate15=raintotmax15*15/60;% This is the highest rainrate per hr using 15 min data
+    if(raintotmax15>StormThresh15) % This how much rain fell in 15 minutes-not a rate per hour
+        SPS15(m,1)=1;
+    else
+        SPS15(m,1)=0;
     end
-
-
+    % Sum the two flags (SPS12 + SPS15)
+    SPS16(m,1)=SPS12(m,1)+SPS15(m,1);
+    % Get I Max30
+    SPS17(m,1)=raintotmax30;
+    nowtime=char(RainFallTime(mstart));
+    ab=1;
 end
 close(hfs)
 % Calculate the Times at the Start of each Rain Event for the second Pass
@@ -621,11 +638,12 @@ PotentialStorms2Table=table(SPS2(:,1),SPS3(:,1),SPS4(:,1),SPS5(:,1),SPS6(:,1),SP
     'RainTot-mm','SecondPassTimes'});
 PotentialStorms2TT = table2timetable(PotentialStorms2Table,'RowTimes','SecondPassTimes');
 SecondPassItems=height(PotentialStorms2TT);
-% Set up a preliminanry list of erosive events
+% Set up a preliminary list of erosive events
 [numsecevents,nncols]=size(SPS2);
 nprelim=0;
+numpassed2=0;
 TimeIndices=zeros(numsecevents,1);
-ErosiveList2=zeros(numsecevents,13);
+ErosiveList2=zeros(numsecevents,16);
 for i=1:numsecevents
     nprelim=nprelim+1;
     ErosiveList2(nprelim,1)=SPS2(i,1);
@@ -641,38 +659,80 @@ for i=1:numsecevents
     ErosiveList2(nprelim,11)=SPS12(i,1);% Passed 6 Hr Rain Higher Threshold
     ErosiveList2(nprelim,12)=SPS13(i,1);% Passed 6 Hr Rain Higher Threshold
     ErosiveList2(nprelim,13)=SPS14(i,1);% maxrain15 min
+    ErosiveList2(nprelim,14)=SPS15(i,1);% Pass Fail on 15 minute Rain Rate flag-Threhsold 3
+    ErosiveList2(nprelim,15)=SPS16(i,1);% Sum of Two Pass Fail Flags
+    ErosiveList2(nprelim,16)=SPS17(i,1);% Max I30
     TimeIndices(nprelim,1)=SPS2(i,1);
     numpassed=sum(SPS11(:,1));
+    if(SPS16(i,1)>0)
+        numpassed2=numpassed2+1;
+    end
 end
-% Set the final erosive array with the no erosive events clipped
-ErosiveList=zeros(numpassed,11);
-SPTimeIndices=zeros(numpassed,1);
+%% Select final erosive events. Now events will be selected based on the value of SPS16. This variable
+% is the sum of two pass fail flags which are stored in SPS12 and SPS15.
+% The first is the sum of rain fall in a 6 hr period while the later will
+% declare an event if a single 15 minute period of rainfall exceeds StormThresh15
+% Set the final erosive array with events that pass at least one of SPS12
+% and SPS15 removed
+ErosiveList=zeros(numpassed2,11);
+SPTimeIndices=zeros(numpassed2,1);
 ix=0;
 for ii=1:numsecevents
-    if((SPS11(ii,1)==1) || (SPS13(ii,1)>0))
+    if((SPS16(ii,1)>0))% This is the sum of flags an can be 0,1,or 2
         ix=ix+1;
-        for jj=1:13
+        for jj=1:16
             ErosiveList(ix,jj)=ErosiveList2(ii,jj);
         end
         SPTimeIndices(ix,1)=ErosiveList2(ii,1);
     end
 end
+% Counts how many events passed eithetr or both criteria
+[nrows12,ncols12]=size(SPS12);
+SPS12Counts=0;
+SPS15Counts=0;
+SPS16Counts=0;
+EventCounts=0;
+CriteriaCounts=zeros(4,1);
+for kk=1:nrows12
+    if(SPS12(kk,1)>0)
+        SPS12Counts=SPS12Counts+1;
+    end
+    if(SPS15(kk,1)>0)
+        SPS15Counts=SPS12Counts+1;
+    end
+    if((SPS12(kk,1)>0) && (SPS15(kk,1)>0))
+        SPS16Counts=SPS16Counts+1;
+    end
+    if(SPS16(kk,1)>0)
+        EventCounts=EventCounts+1;
+    end
+
+end
+CriteriaCounts(1,1)=SPS12Counts;
+CriteriaCounts(2,1)=SPS15Counts;
+CriteriaCounts(3,1)=SPS16Counts;
+CriteriaCounts(4,1)=EventCounts;
 ErosiveTimes=RainFallTime(SPTimeIndices);
-% Create a Table of Erosive Event Data Pass 6 hr RainFall lower limit
+% Create a Table of Erosive Event Data Pass either the 6 hr RainFall lower limit
+% or the 15 min max rate limit
 ErosiveEventTable=table(ErosiveList(:,1),ErosiveList(:,2),ErosiveList(:,3),ErosiveList(:,4),...
     ErosiveList(:,5),ErosiveList(:,6),ErosiveList(:,7),ErosiveList(:,8),...
     ErosiveList(:,9),ErosiveList(:,10),ErosiveList(:,11),ErosiveList(:,12),ErosiveList(:,13),...
+    ErosiveList(:,14),ErosiveList(:,15),...
     ErosiveTimes,'VariableNames',{'StartRain','EndRain','Raintot','NumRain','NumDry',...
     'MaxRate','MaxRateSamp','MaxOverRateLimit','Duration','RainThresh1','RainThresh2',...
-    'MaxRateExceeded','MaxRain15','ErosiveTimes'});
+    'MaxRateExceeded','MaxRain15','Pass15','PassAll','ErosiveTimes'});
 ErosiveEventTT = table2timetable(ErosiveEventTable,'RowTimes','ErosiveTimes');
 ErosiveItems=height(ErosiveEventTT);
-fprintf(fid,'\n')
+fprintf(fid,'\n');
 fprintf(fid,'%s\n','------Detection Stats Follow------');
 fprintf(fid,'%15s %15s %14s\n','First Pass','Second Pass','ErosivePass');
 fprintf(fid,'%12i %12i %15i\n',FirstPassItems,SecondPassItems,ErosiveItems);
+fprintf(fid,'%29s %7i\n','Events Meeting 6hr Raintotal-',SPS12Counts);
+fprintf(fid,'%26s %8i\n','Events Meeting 15 Min Rain Rate-',SPS15Counts);
+fprintf(fid,'%29s %7i\n','Events Meeting Both Criteria-',SPS16Counts);
 fprintf(fid,'%s\n','------End Detection Stats ------');
-fprintf(fid,'\n')
+fprintf(fid,'\n');
 dispstr=strcat('First Pass Events=',num2str(FirstPassItems),'-Second Pass Events=',...
     num2str(SecondPassItems),'-Erosive Events=',num2str(ErosiveItems));
 disp(dispstr)
@@ -787,7 +847,7 @@ disp(dispstr);
 % Start with storm data from the first pass
 if(iExcel==1)
     eval(['cd ' excelpath(1:length(excelpath)-1)]);
-    ExcelFileName=strcat('Station-',num2str(StationNum),'-PotentialStorms.xlsm');
+    ExcelFileName=strcat('Station-',num2str(StationNum),'-RevAPotentialStorms.xlsm');
     if exist(ExcelFileName, 'file')==2
         delete(ExcelFileName);
         dispstr=strcat('Deleted older copy of file-',ExcelFileName);
@@ -802,7 +862,7 @@ if(iExcel==1)
     fprintf(fid,'%s\n',dispstr);
     fprintf(fid,'%\n');
     % Now add data for the second pass
-    ExcelFileName=strcat('Station-',num2str(StationNum),'-PotentialStorms.xlsm');
+    ExcelFileName=strcat('Station-',num2str(StationNum),'-RevAPotentialStorms.xlsm');
     writetimetable(PotentialStorms2TT,ExcelFileName,'Sheet','SecondPass');
     dispstr=strcat('Wrote Second Pass Table-',ExcelFileName,'-To Spreadsheet');
     disp(dispstr);
@@ -811,7 +871,7 @@ if(iExcel==1)
     fprintf(fid,'%s\n',dispstr);
     fprintf(fid,'%\n');
     % Now add data for the Erosive Events
-    ExcelFileName=strcat('Station-',num2str(StationNum),'-PotentialStorms.xlsm');
+    ExcelFileName=strcat('Station-',num2str(StationNum),'-RevAPotentialStorms.xlsm');
     writetimetable(ErosiveEventTT,ExcelFileName,'Sheet','ErosiveEvents');
     dispstr=strcat('Wrote Erosive Events Table-',ExcelFileName,'-To Spreadsheet');
     disp(dispstr);
@@ -820,7 +880,7 @@ if(iExcel==1)
     fprintf(fid,'%s\n',dispstr);
     fprintf(fid,'%\n');
     % Now add data for the Erosive Counts By Month
-    ExcelFileName=strcat('Station-',num2str(StationNum),'-PotentialStorms.xlsm');
+    ExcelFileName=strcat('Station-',num2str(StationNum),'-RevAPotentialStorms.xlsm');
     writetimetable(ErosiveEvent2TT,ExcelFileName,'Sheet','ErosiveEventsCounts');
     dispstr=strcat('Wrote Event Counts Table-',ExcelFileName,'-To Spreadsheet');
     disp(dispstr);
@@ -829,77 +889,7 @@ if(iExcel==1)
     fprintf(fid,'%s\n',dispstr);
     fprintf(fid,'%\n');
 end
-%% Main Program Loop
-% if(igo==1)% Start processing this data
-%     waitstr='Resampling 5 min data to 30 minutes';
-%     hfs=waitbar(0,waitstr);
-% % Start by creating 30 minute files
-%     numused=SelEndIndex-SelStartIndex+1;
-%     numused30=ceil(numused/6);
-%     I30=zeros(numused30,1);
-%     SumRain30=zeros(numused30,1);
-%     I30max=zeros(numused30,1);
-%     SUMKE30=zeros(numused30,1);
-%     ER30=zeros(numused30,1);
-%     ictr=0;
-%     for i=SelStartIndex:6:SelEndIndex
-%         [EI30x,SumKE,ER,VR,maxI30,sumRainFallAmt,teststr1]=Asemble30MinFiles(i);
-%         ictr=ictr+1;
-%         I30(ictr,1)=sumRainFallAmt;
-%         SUMKE30(ictr,1)=SumKE;
-%         I30max(ictr,1)=maxI30*60/30;
-%         ER30(ictr,1)=ER;
-%         SumRain30(ictr,1)=sumRainFallAmt;
-%         waitbar(ictr/numused30);
-%     end
-%     close(hfs);
-% end
-% yd=SelectedYears(1);
-% md=1;
-% dd=1;
-% stime=datetime(yd,md,dd);
-% timestep=minutes(30);
-% fprintf(fid,'%s\n','Rain Counter values');
-% statestr=strcat('Rain Detected In-',num2str(eventctr),'-30 Minute Intervals');
-% fprintf(fid,'%s\n',statestr);
-% statestr='No Rain Detected';
-% statestr=strcat('No Rain Detected In-',num2str(norainctr),'-30 Minute Intervals');
-% fprintf(fid,'%s\n',statestr);
-% fprintf(fid,'%s\n','End Rain Counter Details');
-% %% Create the The R Factor Table
-% RFactorTable=table(I30(:,1),I30max(:,1),SUMKE30(:,1),ER30(:,1),...
-%     'VariableNames',{'Int30','I30max','SUMKE30','ER30'});
-% RFactorTT = table2timetable(RFactorTable,'TimeStep',timestep,'StartTime',stime);
-% eval(['cd ' tablepath(1:length(tablepath)-1)]);
-% actionstr='save';
-% varstr1='RFactorTable RFactorTT';
-% MatFileName=strcat('RFactorTable',num2str(yd),'-30min','.mat');
-% qualstr='-v7.3';
-% [cmdString]=MyStrcatV73(actionstr,MatFileName,varstr1,qualstr);
-% eval(cmdString)
-% %% Create a diagnostic table
-% RainRate=I30;
-% KEnergy=SUMKE30.*SumRain30;
-% DiagTable=table(RainRate(:,1),SumRain30(:,1),I30max(:,1),SUMKE30(:,1),KEnergy(:,1),...
-%     'VariableNames',{'RainRate-mm/hr','RainAccumil-mm','I30max','SUMKE30','KEnergy-MJ/ha'});
-% DiagTT = table2timetable(DiagTable,'TimeStep',timestep,'StartTime',stime);
-% % Now write this as a table that can be imported by Excel
-% eval(['cd ' excelpath(1:length(excelpath)-1)]);
-% ExcelFileName=strcat('DiagnosticTable',num2str(yd),'-30min','.xlsx');
-% writetimetable(DiagTT,ExcelFileName);
-% disp('Wrote Excel File');
-% %% Now plot this data-start with the I30 value for a 30 min slice
-% ikind=1;
-% titlestr=strcat('RainFall30MinRate-','Station-Number-',num2str(StationNum),'-StartYear-',num2str(yd));
-% PlotSingleStationRainFallTable(titlestr,ikind)
-% % Continue with the max rainfall rate in a 30 min slice
-% ikind=2;
-% titlestr=strcat('RainFall30MinMaxRate-','Station-Number-',num2str(StationNum),'-StartYear-',num2str(yd));
-% PlotSingleStationRainFallTable(titlestr,ikind)
-% % Continue with the max rainfall rate in a 30 min slice
-% ikind=3;
-% titlestr=strcat('RainKineticEnery30Min-','Station-Number-',num2str(StationNum),'-StartYear-',num2str(yd));
-% PlotSingleStationRainFallTable(titlestr,ikind)
+
 %% close out activities
 endruntime=deblank(datestr(now));
 endrunstr=strcat('End CalculateRainFallErosion Factor at-',startruntime);
