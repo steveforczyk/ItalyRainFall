@@ -64,28 +64,41 @@ eval(['cd ' jpegpath(1:length(jpegpath)-1)]);
 movie_figure1=figure('position',[hor1 vert1 widd lend]);
 set(gcf,'MenuBar','none');
 if(ikind==1)
-    plot(ErosiveEventTT.ErosiveTimes,ErosiveEventTT.Raintot,'r')
+    plot(ErosiveEventTT.ErosiveTimes,ErosiveEventTT.Raintot,'--rs',...
+    'LineWidth',1,...
+    'MarkerSize',10,...
+    'MarkerEdgeColor','b',...
+    'MarkerFaceColor',[1 0 0]);
     ylabel('Total Precip-mm','FontWeight','bold','FontSize',12);
     TotalPrecip=StormBasicStats{1,11};
 elseif(ikind==2)
-    plot(ErosiveEventTT.ErosiveTimes,ErosiveEventTT.Duration,'g');
+    plot(ErosiveEventTT.ErosiveTimes,ErosiveEventTT.Duration,'--gs',...
+         'LineWidth',1,'MarkerSize',10,'MarkerEdgeColor','g',...
+         'MarkerFaceColor',[1 0 0]);
     ylabel('Duration hr','FontWeight','bold','FontSize',12);
     TotalRainTimeSec1=StormBasicStats{2,11};
 elseif(ikind==3)
-    plot(ErosiveEventTT.ErosiveTimes,ErosiveEventTT.MaxOverRateLimit,'b');
+    plot(ErosiveEventTT.ErosiveTimes,ErosiveEventTT.MaxOverRateLimit,'--bs',...
+         'LineWidth',1,'MarkerSize',10,'MarkerEdgeColor','r',...
+         'MarkerFaceColor',[0 1 0]);
     ylabel('#High Sample Rate','FontWeight','bold','FontSize',12);
     MaxRainRate=StormBasicStats{3,8};
 elseif(ikind==4)
-    plot(ErosiveEventTT.ErosiveTimes,ErosiveEventTT.MaxRate,'b');
-    ylabel('MaxRainRate-mm/hr','FontWeight','bold','FontSize',12);
+    plot(ErosiveEventTT.ErosiveTimes,ErosiveEventTT.MaxRate,'--rs',...
+         'LineWidth',1,'MarkerSize',10,'MarkerEdgeColor','r',...
+         'MarkerFaceColor',[0 1 1]);
+    ylabel('MaxRainRate5min-mm/hr','FontWeight','bold','FontSize',12);
     MaxRainRate5Min=StormBasicStats{4,8};
 elseif(ikind==5)
-    plot(ErosiveEventTT.ErosiveTimes,ErosiveEventTT.MaxRain15,'g');
+    plot(ErosiveEventTT.ErosiveTimes,ErosiveEventTT.MaxRain15,'--gs',...
+         'LineWidth',1,'MarkerSize',10,'MarkerEdgeColor','r',...
+         'MarkerFaceColor',[0 0 1]);
     ylabel('MaxRainRate15min-mm/hr','FontWeight','bold','FontSize',12);
     MaxRainRate15Min=StormBasicStats{5,8}; 
 elseif(ikind==6)
-    plot(ErosiveEventTT.ErosiveTimes,ErosiveEventTT.RainThresh1,'g',...
-        ErosiveEventTT.ErosiveTimes,ErosiveEventTT.RainThresh2,'r');
+    plot(ErosiveEventTT.ErosiveTimes,ErosiveEventTT.RainThresh2,'b',...
+        ErosiveEventTT.ErosiveTimes,ErosiveEventTT.Pass15,'g',...
+        ErosiveEventTT.ErosiveTimes,ErosiveEventTT.PassAll,'r');
     ylabel('RainThresholds','FontWeight','bold','FontSize',12);
 
  
@@ -97,8 +110,8 @@ set(gca,'Position',[0.1300 0.1400 0.7450 0.7750]);
 set(gca,'XGrid','on','YGrid','on');
 set(gca,'XMinorGrid','on','YMinorGrid','on');
 if(ikind==6)
-    legend({'RainThresh1','RainThresh2'},'Location','northeast')
-    set(gca,'YLim',[0 2]);
+    legend({'RainThresh2','Pass15','PassAll'},'Location','northeast');
+    set(gca,'YLim',[0 3]);
 end
 ht=title(titlestr);
 xlabel('Date','FontWeight','bold','FontSize',12);
@@ -124,15 +137,15 @@ if(ikind==1)
     txtstr1=strcat('Number Rain Events-',num2str(numrainevents),'-with a total of-',...
         num2str(TotalPrecip),'-mm of rain in the study period');
 elseif(ikind==2)
-    txtstr1=strcat('Total Rain Duration-',num2str(TotalRainTimeSec1));
+    txtstr1=strcat('Total Rain Duration-',num2str(TotalRainTimeSec1),'-hrs');
 elseif(ikind==3)
-    txtstr1=strcat('NumEventsOver RainRate-',num2str(MaxRainRate));
+    txtstr1=strcat('NumEventsOver RainRate-',num2str(MaxRainRate),'-mm/hrs');
 elseif(ikind==4)
     txtstr1=strcat('MaxRainRate5Min-',num2str(MaxRainRate5Min),'-mm/hr');
 elseif(ikind==5)
     txtstr1=strcat('MaxRainRate15Min-',num2str(MaxRainRate15Min),'-mm/hr');
 elseif(ikind==6)
-    txtstr1=strcat('RainThresh1-set to 1.27 mm','-','RainThresh2=12.7 mm');
+    txtstr1=strcat('RainThresh2=12.7 mm','Pass15=6.35mm/hr');
 end
 txt1=text(tx1,ty1,txtstr1,'FontWeight','bold','FontSize',12);
 tx2=.10;
