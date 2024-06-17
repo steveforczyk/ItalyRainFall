@@ -137,7 +137,8 @@ if(ikind==1)
     txtstr1=strcat('Number Rain Events-',num2str(numrainevents),'-with a total of-',...
         num2str(TotalPrecip),'-mm of rain in the study period');
 elseif(ikind==2)
-    txtstr1=strcat('Total Rain Duration-',num2str(TotalRainTimeSec1),'-hrs');
+    txtstr1=strcat('Total Rain Duration-',num2str(TotalRainTimeSec1),'-hrs-',...
+        'from-Number Rain Events-',num2str(numrainevents));
 elseif(ikind==3)
     txtstr1=strcat('NumEventsOver RainRate-',num2str(MaxRainRate),'-mm/hrs');
 elseif(ikind==4)

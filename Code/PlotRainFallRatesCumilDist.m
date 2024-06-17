@@ -60,8 +60,8 @@ txtstr1=strcat('TotalSamples-',num2str(TotalValues),...
 txt1=text(tx1,ty1,txtstr1,'FontWeight','bold','FontSize',10);
 tx2=.14;
 ty2=.06;
-txtstr2=strcat('Max 5 minute Rain=',num2str(Allraintotmax5),'Max 15 min-',num2str(Allraintotmax15),...
-    'Max 30 min-',num2str(Allraintotmax30),'-in mm');
+txtstr2=strcat('Max 5 minute Rain=',num2str(Allraintotmax5),'-Max 15 min-',num2str(Allraintotmax15),...
+    '-Max 30 min-',num2str(Allraintotmax30),'-in mm');
 txt2=text(tx2,ty2,txtstr2,'FontWeight','bold','FontSize',8);
 set(newaxesh,'Visible','Off');
 pause(chart_time);

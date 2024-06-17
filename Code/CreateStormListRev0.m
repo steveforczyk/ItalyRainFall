@@ -12,9 +12,7 @@
 % temporal assessment https://doi.org/10.1080/17538947.2016.1148203
 
 global RainFallFile1 RainFallFile2 RainFallFile1C RainFallFile2C;
-global ActualRainFall ActualRainFallTimes SortedRainFallAmt S;
-global TotalValues TotalWet TotalDry GlobalValues;
-global Allraintotmax5 Allrate5sample Allraintotmax15 Allrate15sample Allraintotmax30 Allrate30sample;
+global RainFallFile3 RainFallFile3C S;
 global StationStr StationNum RainFallFile RainFallCatalogedFile;
 global RainFallTime RainFallFlag RainFallAmt RainFallName;
 global DetectTime NoDetectTime ErosiveList ErosiveList2 ErosiveIndices;
@@ -319,29 +317,8 @@ fprintf(fid,'%s\n','End Of List Of Selected Years');
 % Limit the search to the selected years
 if(iStorms>0)
     extent= SelEndIndex-SelStartIndex+1;
-% Get the Cumilative Distribution for the 5 min rainfall measurements
-% omit zero values
     [ibig2]=find(RainFallAmt>0);
     numbig2=length(ibig2);
-    TotalValues=length(RainFallAmt);
-    TotalWet=numbig2;
-    TotalDry=TotalValues-TotalWet;
-
-    ActualRainFall=zeros(numbig2,1);
-    ActualRainFallTimes=RainFallTime(ibig2);
-    for m=1:numbig2
-        nowInd=ibig2(m,1);
-        ActualRainFall(m,1)=RainFallAmt(nowInd,1);
-    end
-    SortedRainFallAmt=sort(ActualRainFall,'ascend');
-    ab=1;
-    nsteps=200;
-    [outputXVals,outputValues,cumilOutput] = SortedDistribution(SortedRainFallAmt,nsteps);
-%   Now look for the max global deposits in 5,15 and 30 minute segments
-    GlobalValues=zeros(TotalValues,1);
-    GlobalValues=1:1:TotalValues;
-    GlobalValues=GlobalValues';
-    [Allraintotmax5,Allrate5sample,Allraintotmax15,Allrate15sample,Allraintotmax30,Allrate30sample] = Get15MinAnd30MRatesInSegment(RainFallAmt,GlobalValues);
     [izero2]=find(RainFallAmt==0);
     numzero2=length(izero2);    
     ibig=zeros(extent,1);
@@ -385,6 +362,7 @@ if(iStorms>0)
     numzero=length(izero);
     DetectTime=RainFallTime(ibig);
     NoDetectTime=RainFallTime(izero);
+%    FindRainFallBreakPoints(izero);
     PotentialStorms=cell(numbig,16);
     PotentialStorms{1,1}='DateTime';
     PotentialStorms{1,2}='Sample';
@@ -503,10 +481,6 @@ if(iStorms>0)
         PS16(ii,1)=PotentialStorms{1+ii,16};
     end
 end
-% Plot the cumilative Distribution of RainFall Rate Data
-titlestr=strcat(FileStub,'-CumilRainFallDist');
-titlestr=RemoveUnderScores(titlestr);
-PlotRainFallRatesCumilDist(outputXVals,outputValues,cumilOutput,titlestr)
 % Calculate the location of BreakPoints Changed locationb of function call
 % FindRainFallBreakPoints(izero,ibig);
 % ab=1;
@@ -573,27 +547,68 @@ for m=1:numposevents
     rainhold30=zeros(6,1);
     ipass=0;
     maxrate15samp=0;
-    numseg=mend-mstart+1;
-    LocalVals=zeros(numseg,1);
-    LocalInd=zeros(numseg,1);
-    ik=0;
-    for mm=mstart:mend% Inner Loop
-        ik=ik+1;
-        rate=RainFallAmt(mm,1);
-        index=mm;
-        LocalVals(ik,1)=rate;
-        LocalInd(ik,1)=index;
+    for mm=mstart:mend
+        ipass=ipass+1;
+        if(ik>=3)
+            ik=0;
+            rainhold=zeros(3,1);
+        end
+%         raintotmax15=0;
+         raintotmax30=0;
+         rate=RainFallAmt(mm);% rain mm/hr over a 5 min interval
+%         raintot=raintot+rate*5/60; propbably should not sum values
+         raintot=rate*5/60;
+         ik=ik+1;
+         ik30=ik30+1;
+         rainhold(ik,1)=raintot;
+         rainhold30(ik30,1)=raintot;
+         if((ik==3) && (mm<=mend))% Get the 15 mim raintot
+            sumrainhold=sum(rainhold);
+            if(sumrainhold>raintotmax15)
+                raintotmax15=sumrainhold;
+                maxrate15samp=mm;
+            end
+         elseif(ik>3)
+             ik=0;
+%          else
+%              raintotmax15=0;
+         end
+         if((ik30==6) && (mm<=mend))% Get the 30 mim raintot
+            sumrainhold30=sum(rainhold30);
+            if(sumrainhold30>raintotmax30)
+                raintotmax30=sumrainhold30;
+            end
+            ab=1;
+         elseif(ik30>6)
+             ik30=0;
+         else
+             raintotmax30=0;
+         end        
+         if(rate>0)
+            lastrain=mm;
+            numrain=numrain+1;
+            if(numrain==1)
+                startrain=mm;
+            end
+         else
+             numdry=numdry+1;
+         end
+         if(rate>maxrate)
+            maxrate=rate;
+            maxratesamp=mm;
+         end 
+         if(maxrate>StormThresh15)
+             maxrateoverlimit=maxrateoverlimit+1;
+             maxrateevent=1;
+         else
+             maxrateevent=0;
+         end
+         ab=1;
     end
-% Get the start and rain indices
-    [startrain,endrain,duration]=GetStartAndEndRainIndices(LocalVals,LocalInd);
-    ab=1;
-% now get the maxrain rate
-   [maxrate,maxratesamp,maxrateoverlimit] = GetMaxRainRateInSegment(LocalVals,LocalInd);
-% Get the raintotals
-   [raintot,numrain,numdry] = GetMaxRainSegmentTotals(LocalVals,LocalInd);
     SPTimeIndices(m,1)=startrain;
     SPS2(m,1)=startrain;
-    SPS3(m,1)=endrain;
+    SPS3(m,1)=lastrain;
+    duration=(lastrain-startrain+1)*5/60; % duration in hrs
     SPS4(m,1)=duration;
     SPS5(m,1)=maxrate;
     SPS6(m,1)=maxratesamp;
@@ -601,7 +616,6 @@ for m=1:numposevents
     SPS8(m,1)=numrain;
     SPS9(m,1)=numdry;
     SPS10(m,1)=maxrateoverlimit;
-    ab=1;
     if(raintot>=StormThresh360)% This checks to see if a rain break ocured
         SPS11(m,1)=1;
     else
@@ -612,12 +626,10 @@ for m=1:numposevents
     else
         SPS12(m,1)=0;
     end
-%    [raintotmax15,rate15sample,raintotmax30,rate30sample] = Get15MinAnd30MRatesInSegment(LocalVals,LocalInd);
-    [raintotmax5,rate5sample,raintotmax15,rate15sample,raintotmax30,rate30sample] = Get15MinAnd30MRatesInSegment(LocalVals,LocalInd);
-    SPS13(m,1)=rate15sample;% biggest 15 min rain fall sample
+    SPS13(m,1)=maxrateevent;% biggest 15 min rain fall sample
     SPS14(m,1)=raintotmax15;% biggest 15 min rainfall 
-   % maxrainrate15=raintotmax15*15/60;% This is the highest rainrate per hr using 15 min data
-    if(raintotmax15>StormThresh15) % This how much rain fell in 15 minutes-not a rate per hour
+    maxrainrate15=raintotmax15*15/60;% This is the highest rainrate per hr using 15 min data
+    if(raintotmax15>StormThresh15) % This how much rain fell in 15 minutes-not adjusted to a rater
         SPS15(m,1)=1;
     else
         SPS15(m,1)=0;
@@ -627,7 +639,7 @@ for m=1:numposevents
     % Get I Max30
     SPS17(m,1)=raintotmax30;
     nowtime=char(RainFallTime(mstart));
-    ab=1;
+
 end
 close(hfs)
 % Calculate the Times at the Start of each Rain Event for the second Pass
@@ -638,7 +650,7 @@ PotentialStorms2Table=table(SPS2(:,1),SPS3(:,1),SPS4(:,1),SPS5(:,1),SPS6(:,1),SP
     'RainTot-mm','SecondPassTimes'});
 PotentialStorms2TT = table2timetable(PotentialStorms2Table,'RowTimes','SecondPassTimes');
 SecondPassItems=height(PotentialStorms2TT);
-% Set up a preliminary list of erosive events
+% Set up a preliminanry list of erosive events
 [numsecevents,nncols]=size(SPS2);
 nprelim=0;
 numpassed2=0;
@@ -815,6 +827,12 @@ is=iFirstYear;
 ie=iLastYear;
 ab=2;
 %% Now Turn this into a Table
+% ErosiveEvent2Table=table(ErosiveMonthlyCounts(:,1),ErosiveMonthlyCounts(:,2),ErosiveMonthlyCounts(:,3),ErosiveMonthlyCounts(:,4),...
+%     ErosiveMonthlyCounts(:,5),ErosiveMonthlyCounts(:,6),ErosiveMonthlyCounts(:,7),ErosiveMonthlyCounts(:,8),...
+%     ErosiveMonthlyCounts(:,9),ErosiveMonthlyCounts(:,10),ErosiveMonthlyCounts(:,11),ErosiveMonthlyCounts(:,12),...
+%     ErosiveMonthlyCounts(:,13),EventYears,'VariableNames',{'Jan','Feb','Mar','Apr','May',...
+%     'Jun','Jul','Aug','Sep','Oct','Nov','Dec',...
+%     'Year','EventYears'});
 ErosiveEvent2Table=table(ErosiveMonthlyCounts(is:ie,1),ErosiveMonthlyCounts(is:ie,2),ErosiveMonthlyCounts(is:ie,3),...
     ErosiveMonthlyCounts(is:ie,4),ErosiveMonthlyCounts(is:ie,5),ErosiveMonthlyCounts(is:ie,6),...
     ErosiveMonthlyCounts(is:ie,7),ErosiveMonthlyCounts(is:ie,8),ErosiveMonthlyCounts(is:ie,9),...
@@ -841,7 +859,7 @@ disp(dispstr);
 % Start with storm data from the first pass
 if(iExcel==1)
     eval(['cd ' excelpath(1:length(excelpath)-1)]);
-    ExcelFileName=strcat('Station-',num2str(StationNum),'-RevAPotentialStorms.xlsm');
+    ExcelFileName=strcat('Station-',num2str(StationNum),'-PotentialStorms.xlsm');
     if exist(ExcelFileName, 'file')==2
         delete(ExcelFileName);
         dispstr=strcat('Deleted older copy of file-',ExcelFileName);
@@ -856,7 +874,7 @@ if(iExcel==1)
     fprintf(fid,'%s\n',dispstr);
     fprintf(fid,'%\n');
     % Now add data for the second pass
-    ExcelFileName=strcat('Station-',num2str(StationNum),'-RevAPotentialStorms.xlsm');
+    ExcelFileName=strcat('Station-',num2str(StationNum),'-PotentialStorms.xlsm');
     writetimetable(PotentialStorms2TT,ExcelFileName,'Sheet','SecondPass');
     dispstr=strcat('Wrote Second Pass Table-',ExcelFileName,'-To Spreadsheet');
     disp(dispstr);
@@ -865,7 +883,7 @@ if(iExcel==1)
     fprintf(fid,'%s\n',dispstr);
     fprintf(fid,'%\n');
     % Now add data for the Erosive Events
-    ExcelFileName=strcat('Station-',num2str(StationNum),'-RevAPotentialStorms.xlsm');
+    ExcelFileName=strcat('Station-',num2str(StationNum),'-PotentialStorms.xlsm');
     writetimetable(ErosiveEventTT,ExcelFileName,'Sheet','ErosiveEvents');
     dispstr=strcat('Wrote Erosive Events Table-',ExcelFileName,'-To Spreadsheet');
     disp(dispstr);
@@ -874,7 +892,7 @@ if(iExcel==1)
     fprintf(fid,'%s\n',dispstr);
     fprintf(fid,'%\n');
     % Now add data for the Erosive Counts By Month
-    ExcelFileName=strcat('Station-',num2str(StationNum),'-RevAPotentialStorms.xlsm');
+    ExcelFileName=strcat('Station-',num2str(StationNum),'-PotentialStorms.xlsm');
     writetimetable(ErosiveEvent2TT,ExcelFileName,'Sheet','ErosiveEventsCounts');
     dispstr=strcat('Wrote Event Counts Table-',ExcelFileName,'-To Spreadsheet');
     disp(dispstr);
